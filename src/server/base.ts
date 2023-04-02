@@ -13,12 +13,23 @@ function getOrCreateOpenTokObject() {
   cachedOpenTok = new OpenTok(OPENTOK_API_KEY, OPENTOK_API_SECRET)
   return cachedOpenTok
 }
-export async function createSession() {
+export function createSession() {
   const opentok = getOrCreateOpenTokObject()
 
-  const _createSession = util.promisify(opentok.createSession)
   // Important: Only routed OpenTok sessions support live streaming broadcasts.
-  return _createSession({ mediaMode: 'routed', archiveMode: 'always' })
+  return new Promise<OpenTok.Session>((resolve, reject) => {
+    opentok.createSession(
+      { mediaMode: 'routed', archiveMode: 'always' },
+      (error, session) => {
+        if (error || !session) {
+          reject(error)
+          return
+        }
+
+        resolve(session)
+      }
+    )
+  })
 }
 
 const oneDayInTime = 24 * 60 * 60
