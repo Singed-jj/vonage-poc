@@ -3,20 +3,18 @@ import { apiKey } from './constants'
 import * as OT from '@opentok/client'
 
 interface Context {
-  // getSession(): OT.Session | null
   connect(sessionId: string, role: SessionRole): Promise<boolean>
   disconnect(sessionId: string): void
-  startPublish(sessionId: string): void
+  startPublish(sessionId: string, targetElement?: HTMLElement): void
   stopPublish(sessionId: string): void
   startSubscribe(sessionId: string, targetElement?: HTMLElement): void
   stopSubscribe(sessionId: string): void
   updateCurrentAudioInputSourceToNextSource(): Promise<void>
   updateCurrentVideoInputSourceToNextSource(): Promise<void>
-  setVideoResolutionQuality(quality: videoResolutionQuality): void
+  setVideoResolutionQuality(quality: VideoResolutionQuality): void
 }
 
 export const OTContext = React.createContext<Context>({
-  // getSession: () => null,
   connect: () => new Promise(() => null),
   disconnect: () => null,
   startPublish: () => null,
@@ -29,7 +27,7 @@ export const OTContext = React.createContext<Context>({
 })
 
 type SessionRole = 'publisher' | 'subscriber'
-type videoResolutionQuality = 'low' | 'medium' | 'high'
+type VideoResolutionQuality = 'low' | 'medium' | 'high'
 
 export const OTProvider: React.FC<{ children?: React.ReactNode }> = ({
   children,
@@ -38,6 +36,10 @@ export const OTProvider: React.FC<{ children?: React.ReactNode }> = ({
   const publisher = React.useRef<OT.Publisher>()
   const subscriber = React.useRef<OT.Subscriber>()
   const token = React.useRef<Map<string, string>>(new Map()) // {[sessionId]: token}
+  const [currentVideoInputSourceIdx, setCurrentVideoInputSourceIdx] =
+    React.useState(0)
+  const [currentAudioInputSourceIdx, setCurrentAudioInputSourceIdx] =
+    React.useState(0)
 
   const getInputDevices = React.useCallback(
     async (mediaType: 'audio' | 'video') => {
@@ -125,11 +127,6 @@ export const OTProvider: React.FC<{ children?: React.ReactNode }> = ({
     [getSessionInstance]
   )
 
-  const [currentVideoInputSourceIdx, setCurrentVideoInputSourceIdx] =
-    React.useState(0)
-  const [currentAudioInputSourceIdx, setCurrentAudioInputSourceIdx] =
-    React.useState(0)
-
   const getNextInputSource = React.useCallback(
     async (mediaType: 'audio' | 'video') => {
       const sources = await getInputDevices(mediaType)
@@ -211,53 +208,60 @@ export const OTProvider: React.FC<{ children?: React.ReactNode }> = ({
     [_destroyPublisher, getSessionInstance]
   )
 
-  const getPublisherInstance = React.useCallback(() => {
-    if (publisher.current) {
-      return publisher.current
-    }
-
-    const _publisher = OT.initPublisher(
-      undefined,
-      {
-        insertMode: 'append',
-        resolution: '1920x1080',
-        frameRate: 30,
-        audioBitrate: 48000,
-        autoGainControl: false,
-        echoCancellation: false,
-        enableStereo: true,
-        noiseSuppression: false,
-      },
-      function (error) {
-        console.log('OT.initPublisher error: ', error)
+  const getPublisherInstance = React.useCallback(
+    (targetElement?: HTMLElement) => {
+      if (publisher.current) {
+        return publisher.current
       }
-    )
 
-    _publisher.on({
-      accessAllowed: (event: any) => {
-        OT.log(`accessAllowed: ${event}`)
-        // The user has granted access to the camera and mic.
-      },
-      accessDenied: (event: any) => {
-        // The user has denied access to the camera and mic.
-        OT.log(`accessDenied: ${event}`)
-      },
-      streamCreated: (event: any) => {
-        OT.log(`The publisher started streaming. ${event}`)
-      },
-      streamDestroyed: (event: any) => {
-        OT.log('The publisher stopped streaming. Reason: ' + event.reason)
-      },
-    })
+      const _publisher = OT.initPublisher(
+        targetElement,
+        {
+          insertMode: 'append',
+          resolution: '1920x1080',
+          height: '100%',
+          width: '100%',
+          insertDefaultUI: true,
+          showControls: false,
+          frameRate: 30,
+          audioBitrate: 48000,
+          autoGainControl: false,
+          echoCancellation: false,
+          enableStereo: true,
+          noiseSuppression: false,
+        },
+        function (error) {
+          console.log('OT.initPublisher error: ', error)
+        }
+      )
 
-    publisher.current = _publisher
-    return _publisher
-  }, [])
+      _publisher.on({
+        accessAllowed: (event: any) => {
+          OT.log(`accessAllowed: ${event}`)
+          // The user has granted access to the camera and mic.
+        },
+        accessDenied: (event: any) => {
+          // The user has denied access to the camera and mic.
+          OT.log(`accessDenied: ${event}`)
+        },
+        streamCreated: (event: any) => {
+          OT.log(`The publisher started streaming. ${event}`)
+        },
+        streamDestroyed: (event: any) => {
+          OT.log('The publisher stopped streaming. Reason: ' + event.reason)
+        },
+      })
+
+      publisher.current = _publisher
+      return _publisher
+    },
+    []
+  )
 
   const startPublish = React.useCallback(
-    (sessionId: string) => {
+    (sessionId: string, targetElement?: HTMLElement) => {
       const _session = getSessionInstance(sessionId)
-      const _publisher = getPublisherInstance()
+      const _publisher = getPublisherInstance(targetElement)
 
       _session.publish(_publisher, function (error) {
         if (error) {
@@ -280,7 +284,7 @@ export const OTProvider: React.FC<{ children?: React.ReactNode }> = ({
   )
 
   const setVideoResolutionQuality = React.useCallback(
-    (quality: videoResolutionQuality) => {
+    (quality: VideoResolutionQuality) => {
       if (!subscriber.current) {
         return
       }
