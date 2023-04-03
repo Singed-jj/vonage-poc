@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { OTContext, OTProvider } from '@/client/ot'
 
+/** SSR 할수 없는 컴포넌트입니다.*/
 export const Content: React.FC = () => {
   return (
     <OTProvider>
@@ -25,10 +26,36 @@ function Button({ onClick, title }: { onClick: () => void; title: string }) {
   )
 }
 
+function Section({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <>
+      <Title title={title} />
+      <Spacer height={10} />
+      <div
+        style={{
+          display: 'flex',
+          flex: 1,
+          flexDirection: 'row',
+          width: '100%',
+        }}
+      >
+        {children}
+      </div>
+    </>
+  )
+}
+
 function _Content() {
   const [sessionId, setSessionId] = React.useState<string>('')
   const videoContainerRef = React.useRef<HTMLDivElement>(null)
 
+  // TODO: disconnect, stopPublish, stopSubscribe도 구현해야 합니다.
   const {
     connect,
     disconnect,
@@ -41,17 +68,17 @@ function _Content() {
     setVideoResolutionQuality,
   } = React.useContext(OTContext)
 
-  const connectAndPublish = React.useCallback(async () => {
+  const connectSessionAndPublish = React.useCallback(async () => {
     const isConnected = await connect(sessionId, 'publisher')
     if (!isConnected) {
       console.log('Failed to connect from publisher!!')
       return
     }
     console.log(`Success to connect as publisher!!`)
-    startPublish(sessionId)
+    startPublish(sessionId, videoContainerRef.current ?? undefined)
   }, [connect, sessionId, startPublish])
 
-  const connectAsSubscriber = React.useCallback(async () => {
+  const connectSessionAsSubscriber = React.useCallback(async () => {
     const isConnected = await connect(sessionId, 'subscriber')
     if (!isConnected) {
       console.log('Failed to connect from subscriber!!')
@@ -78,39 +105,25 @@ function _Content() {
       ? (windowWidth * 1080) / 1920
       : windowHeight
   const videoWidth = (videoHeight * 1920) / 1080
+
   return (
     <>
       <div
         ref={videoContainerRef}
         id="video-container"
         style={{ background: 'pink', height: videoHeight, width: videoWidth }}
-      ></div>
+      />
       <Spacer height={100} />
-      <Title title="송출/구독" />
-      <Spacer height={10} />
-      <div
-        style={{
-          display: 'flex',
-          flex: 1,
-          flexDirection: 'row',
-          width: '100%',
-        }}
-      >
-        <Button onClick={connectAndPublish} title="connect and publish" />
+      <Section title="송출/구독">
+        <Button
+          onClick={connectSessionAndPublish}
+          title="connect and publish"
+        />
         <Spacer width={100} />
-        <Button onClick={connectAsSubscriber} title="subscribe" />
-      </div>
+        <Button onClick={connectSessionAsSubscriber} title="subscribe" />
+      </Section>
       <Spacer height={100} />
-      <Title title="미디어 인풋 변경" />
-      <Spacer height={10} />
-      <div
-        style={{
-          display: 'flex',
-          flex: 1,
-          flexDirection: 'row',
-          width: '100%',
-        }}
-      >
+      <Section title="미디어 인풋 변경">
         <Button
           onClick={updateCurrentAudioInputSourceToNextSource}
           title="update audio input source to next"
@@ -120,18 +133,9 @@ function _Content() {
           onClick={updateCurrentVideoInputSourceToNextSource}
           title="update video input source to next"
         />
-      </div>
+      </Section>
       <Spacer height={100} />
-      <Title title="비디오 해상도" />
-      <Spacer height={10} />
-      <div
-        style={{
-          display: 'flex',
-          flex: 1,
-          flexDirection: 'row',
-          width: '100%',
-        }}
-      >
+      <Section title="비디오 해상도">
         <Button
           onClick={() => setVideoResolutionQuality('high')}
           title="HIGH"
@@ -143,21 +147,20 @@ function _Content() {
         />
         <Spacer width={100} />
         <Button onClick={() => setVideoResolutionQuality('low')} title="LOW" />
-      </div>
+      </Section>
       <Spacer height={100} />
-      <Title title="세션" />
-      <Spacer height={10} />
-      <div>
+
+      <Section title="세션">
         <Button onClick={requestNewSession} title="새로운 세션 만들기" />
-      </div>
+      </Section>
       <Spacer height={100} />
-      <Title title="세션 ID" />
-      <Spacer height={10} />
-      <input
-        style={{ width: 100, height: 40, backgroundColor: 'orange' }}
-        onChange={(e) => setSessionId(e.target.value)}
-        value={sessionId}
-      />
+      <Section title="세션 ID">
+        <input
+          style={{ width: 100, height: 40, backgroundColor: 'orange' }}
+          onChange={(e) => setSessionId(e.target.value)}
+          value={sessionId}
+        />
+      </Section>
       <Spacer height={100} />
     </>
   )
